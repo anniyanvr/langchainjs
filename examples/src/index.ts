@@ -1,5 +1,6 @@
 import path from "path";
 import url from "url";
+import { awaitAllCallbacks } from "@langchain/core/callbacks/promises";
 
 const [exampleName, ...args] = process.argv.slice(2);
 
@@ -37,6 +38,7 @@ try {
     )
   ));
 } catch (e) {
+  console.log(e);
   throw new Error(`Could not load example ${exampleName}: ${e}`);
 }
 
@@ -44,10 +46,11 @@ if (runExample) {
   const maybePromise = runExample(args);
 
   if (maybePromise instanceof Promise) {
-    maybePromise.catch((e) => {
-      console.error(`Example failed with:`);
-      console.error(e);
-      process.exit(1);
-    });
+    maybePromise
+      .catch((e) => {
+        console.error(`Example failed with:`);
+        console.error(e);
+      })
+      .finally(() => awaitAllCallbacks());
   }
 }

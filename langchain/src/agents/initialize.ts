@@ -1,23 +1,34 @@
-import { BaseLanguageModel } from "../base_language/index.js";
-import { CallbackManager } from "../callbacks/manager.js";
+import type { BaseLanguageModelInterface } from "@langchain/core/language_models/base";
+import type {
+  StructuredToolInterface,
+  ToolInterface,
+} from "@langchain/core/tools";
+import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BufferMemory } from "../memory/buffer_memory.js";
-import { Tool } from "../tools/base.js";
 import { ChatAgent } from "./chat/index.js";
 import { ChatConversationalAgent } from "./chat_convo/index.js";
+import { StructuredChatAgent } from "./structured_chat/index.js";
 import { AgentExecutor, AgentExecutorInput } from "./executor.js";
 import { ZeroShotAgent } from "./mrkl/index.js";
+import { OpenAIAgent } from "./openai_functions/index.js";
+import { XMLAgent } from "./xml/index.js";
 
+/**
+ * Represents the type of an agent in LangChain. It can be
+ * "zero-shot-react-description", "chat-zero-shot-react-description", or
+ * "chat-conversational-react-description".
+ */
 type AgentType =
   | "zero-shot-react-description"
   | "chat-zero-shot-react-description"
   | "chat-conversational-react-description";
 
 /**
- * @deprecated use initializeAgentExecutorWithOptions instead
+ * @deprecated See {@link https://js.langchain.com/docs/modules/agents/agent_types/ | new agent creation docs}.
  */
 export const initializeAgentExecutor = async (
-  tools: Tool[],
-  llm: BaseLanguageModel,
+  tools: ToolInterface[],
+  llm: BaseLanguageModelInterface,
   _agentType?: AgentType,
   _verbose?: boolean,
   _callbackManager?: CallbackManager
@@ -71,46 +82,96 @@ export type InitializeAgentExecutorOptions =
   | ({
       agentType: "chat-conversational-react-description";
       agentArgs?: Parameters<typeof ChatConversationalAgent.fromLLMAndTools>[2];
+    } & Omit<AgentExecutorInput, "agent" | "tools">)
+  | ({
+      agentType: "xml";
+      agentArgs?: Parameters<typeof XMLAgent.fromLLMAndTools>[2];
     } & Omit<AgentExecutorInput, "agent" | "tools">);
 
 /**
- * Initialize an agent executor with options
+ * @interface
+ */
+export type InitializeAgentExecutorOptionsStructured =
+  | ({
+      agentType: "structured-chat-zero-shot-react-description";
+      agentArgs?: Parameters<typeof StructuredChatAgent.fromLLMAndTools>[2];
+    } & Omit<AgentExecutorInput, "agent" | "tools">)
+  | ({
+      agentType: "openai-functions";
+      agentArgs?: Parameters<typeof OpenAIAgent.fromLLMAndTools>[2];
+    } & Omit<AgentExecutorInput, "agent" | "tools">);
+
+/**
+ * Initialize an agent executor with options.
+ * @deprecated See {@link https://js.langchain.com/docs/modules/agents/agent_types/ | new agent creation docs}.
  * @param tools Array of tools to use in the agent
  * @param llm LLM or ChatModel to use in the agent
  * @param options Options for the agent, including agentType, agentArgs, and other options for AgentExecutor.fromAgentAndTools
  * @returns AgentExecutor
  */
-export const initializeAgentExecutorWithOptions = async (
-  tools: Tool[],
-  llm: BaseLanguageModel,
-  options: InitializeAgentExecutorOptions = {
+export async function initializeAgentExecutorWithOptions(
+  tools: StructuredToolInterface[],
+  llm: BaseLanguageModelInterface,
+  options: InitializeAgentExecutorOptionsStructured
+): Promise<AgentExecutor>;
+/** @deprecated See {@link https://js.langchain.com/docs/modules/agents/agent_types/ | new agent creation docs}. */
+export async function initializeAgentExecutorWithOptions(
+  tools: ToolInterface[],
+  llm: BaseLanguageModelInterface,
+  options?: InitializeAgentExecutorOptions
+): Promise<AgentExecutor>;
+/** @deprecated See {@link https://js.langchain.com/docs/modules/agents/agent_types/ | new agent creation docs}. */
+export async function initializeAgentExecutorWithOptions(
+  tools: StructuredToolInterface[] | ToolInterface[],
+  llm: BaseLanguageModelInterface,
+  options:
+    | InitializeAgentExecutorOptions
+    | InitializeAgentExecutorOptionsStructured = {
     agentType:
       llm._modelType() === "base_chat_model"
         ? "chat-zero-shot-react-description"
         : "zero-shot-react-description",
   }
-): Promise<AgentExecutor> => {
+): Promise<AgentExecutor> {
+  // Note this tools cast is safe as the overload signatures prevent
+  // the function from being called with a StructuredTool[] when
+  // the agentType is not in InitializeAgentExecutorOptionsStructured
   switch (options.agentType) {
     case "zero-shot-react-description": {
-      const { agentArgs, ...rest } = options;
+      const { agentArgs, tags, ...rest } = options;
       return AgentExecutor.fromAgentAndTools({
-        agent: ZeroShotAgent.fromLLMAndTools(llm, tools, agentArgs),
+        tags: [...(tags ?? []), "zero-shot-react-description"],
+        agent: ZeroShotAgent.fromLLMAndTools(
+          llm,
+          tools as ToolInterface[],
+          agentArgs
+        ),
         tools,
         ...rest,
       });
     }
     case "chat-zero-shot-react-description": {
-      const { agentArgs, ...rest } = options;
+      const { agentArgs, tags, ...rest } = options;
       return AgentExecutor.fromAgentAndTools({
-        agent: ChatAgent.fromLLMAndTools(llm, tools, agentArgs),
+        tags: [...(tags ?? []), "chat-zero-shot-react-description"],
+        agent: ChatAgent.fromLLMAndTools(
+          llm,
+          tools as ToolInterface[],
+          agentArgs
+        ),
         tools,
         ...rest,
       });
     }
     case "chat-conversational-react-description": {
-      const { agentArgs, memory, ...rest } = options;
+      const { agentArgs, memory, tags, ...rest } = options;
       const executor = AgentExecutor.fromAgentAndTools({
-        agent: ChatConversationalAgent.fromLLMAndTools(llm, tools, agentArgs),
+        tags: [...(tags ?? []), "chat-conversational-react-description"],
+        agent: ChatConversationalAgent.fromLLMAndTools(
+          llm,
+          tools as ToolInterface[],
+          agentArgs
+        ),
         tools,
         memory:
           memory ??
@@ -118,6 +179,50 @@ export const initializeAgentExecutorWithOptions = async (
             returnMessages: true,
             memoryKey: "chat_history",
             inputKey: "input",
+            outputKey: "output",
+          }),
+        ...rest,
+      });
+      return executor;
+    }
+    case "xml": {
+      const { agentArgs, tags, ...rest } = options;
+      const executor = AgentExecutor.fromAgentAndTools({
+        tags: [...(tags ?? []), "xml"],
+        agent: XMLAgent.fromLLMAndTools(
+          llm,
+          tools as ToolInterface[],
+          agentArgs
+        ),
+        tools,
+        ...rest,
+      });
+      return executor;
+    }
+    case "structured-chat-zero-shot-react-description": {
+      const { agentArgs, memory, tags, ...rest } = options;
+      const executor = AgentExecutor.fromAgentAndTools({
+        tags: [...(tags ?? []), "structured-chat-zero-shot-react-description"],
+        agent: StructuredChatAgent.fromLLMAndTools(llm, tools, agentArgs),
+        tools,
+        memory,
+        ...rest,
+      });
+      return executor;
+    }
+    case "openai-functions": {
+      const { agentArgs, memory, tags, ...rest } = options;
+      const executor = AgentExecutor.fromAgentAndTools({
+        tags: [...(tags ?? []), "openai-functions"],
+        agent: OpenAIAgent.fromLLMAndTools(llm, tools, agentArgs),
+        tools,
+        memory:
+          memory ??
+          new BufferMemory({
+            returnMessages: true,
+            memoryKey: "chat_history",
+            inputKey: "input",
+            outputKey: "output",
           }),
         ...rest,
       });
@@ -127,4 +232,4 @@ export const initializeAgentExecutorWithOptions = async (
       throw new Error("Unknown agent type");
     }
   }
-};
+}

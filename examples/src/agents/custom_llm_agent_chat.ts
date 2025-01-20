@@ -4,27 +4,24 @@ import {
   LLMSingleActionAgent,
 } from "langchain/agents";
 import { LLMChain } from "langchain/chains";
-import { ChatOpenAI } from "langchain/chat_models/openai";
+import { ChatOpenAI } from "@langchain/openai";
+import { Calculator } from "@langchain/community/tools/calculator";
 import {
   BaseChatPromptTemplate,
-  BasePromptTemplate,
   SerializedBasePromptTemplate,
   renderTemplate,
-} from "langchain/prompts";
-import {
-  AgentAction,
-  AgentFinish,
-  AgentStep,
-  BaseChatMessage,
-  HumanChatMessage,
-  InputValues,
-  PartialValues,
-} from "langchain/schema";
-import { SerpAPI, Tool } from "langchain/tools";
-import { Calculator } from "langchain/tools/calculator";
+} from "@langchain/core/prompts";
+import { AgentAction, AgentFinish, AgentStep } from "@langchain/core/agents";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { InputValues } from "@langchain/core/memory";
+import { PartialValues } from "@langchain/core/utils/types";
+import { Tool } from "@langchain/core/tools";
+import { SerpAPI } from "@langchain/community/tools/serpapi";
 
 const PREFIX = `Answer the following questions as best you can. You have access to the following tools:`;
-const formatInstructions = (toolNames: string) => `Use the following format:
+const formatInstructions = (
+  toolNames: string
+) => `Use the following format in your response:
 
 Question: the input question you must answer
 Thought: you should always think about what to do
@@ -48,10 +45,10 @@ class CustomPromptTemplate extends BaseChatPromptTemplate {
   }
 
   _getPromptType(): string {
-    throw new Error("Not implemented");
+    return "chat";
   }
 
-  async formatMessages(values: InputValues): Promise<BaseChatMessage[]> {
+  async formatMessages(values: InputValues): Promise<BaseMessage[]> {
     /** Construct the final template */
     const toolStrings = this.tools
       .map((tool) => `${tool.name}: ${tool.description}`)
@@ -70,10 +67,10 @@ class CustomPromptTemplate extends BaseChatPromptTemplate {
     const newInput = { agent_scratchpad: agentScratchpad, ...values };
     /** Format the template. */
     const formatted = renderTemplate(template, "f-string", newInput);
-    return [new HumanChatMessage(formatted)];
+    return [new HumanMessage(formatted)];
   }
 
-  partial(_values: PartialValues): Promise<BasePromptTemplate> {
+  partial(_values: PartialValues): Promise<BaseChatPromptTemplate> {
     throw new Error("Not implemented");
   }
 
@@ -83,6 +80,8 @@ class CustomPromptTemplate extends BaseChatPromptTemplate {
 }
 
 class CustomOutputParser extends AgentActionOutputParser {
+  lc_namespace = ["langchain", "agents", "custom_llm_agent_chat"];
+
   async parse(text: string): Promise<AgentAction | AgentFinish> {
     if (text.includes("Final Answer:")) {
       const parts = text.split("Final Answer:");
@@ -142,7 +141,7 @@ export const run = async () => {
 
   console.log(`Executing with input "${input}"...`);
 
-  const result = await executor.call({ input });
+  const result = await executor.invoke({ input });
 
   console.log(`Got output ${result.output}`);
 };

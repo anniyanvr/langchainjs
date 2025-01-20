@@ -1,51 +1,57 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "**/.env"
-  ],
+  "globalDependencies": ["**/.env"],
   "pipeline": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**",
-        "dist-cjs/**",
-        "*.js",
-        "*.cjs",
-        "*.d.ts"
-      ],
-      "inputs": [
-        "src/**",
-        "scripts/**",
-        "package.json",
-        "tsconfig.json"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "lint": {
-      "outputs": []
+      "dependsOn": ["^lint"]
+    },
+    "lint:fix": {
+      "dependsOn": ["^lint:fix"]
     },
     "format": {
-      "outputs": []
+      "dependsOn": ["^format"]
     },
     "format:check": {
-      "outputs": []
+      "dependsOn": ["^format:check"]
     },
     "test": {
+      "cache": false,
+      "dependsOn": ["^build", "build"]
+    },
+    "test:ci": {
       "outputs": [],
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^test", "test"]
+    },
+    "test:single": {
+      "dependsOn": ["^build", "build"]
+    },
+    "test:int": {
+      "dependsOn": ["^build", "build"]
     },
     "test:integration": {
-      "outputs": [],
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build", "build", "test:int"]
     },
-    "precommit": {},
-    "start": {
-      "cache": false
+    "test:standard:unit": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "test:standard:int": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "test:standard": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "clean": {
+      "dependsOn": ["^clean"]
+    },
+    "build:internal": {
+      "dependsOn": ["^build:internal"]
     }
   }
 }

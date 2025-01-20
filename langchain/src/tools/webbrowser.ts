@@ -1,18 +1,23 @@
+import type { BaseLanguageModelInterface } from "@langchain/core/language_models/base";
+import { Document } from "@langchain/core/documents";
+import type { EmbeddingsInterface } from "@langchain/core/embeddings";
 import axiosMod, { AxiosRequestConfig, AxiosStatic } from "axios";
-import { isNode } from "browser-or-node";
 import * as cheerio from "cheerio";
-import { BaseLanguageModel } from "../base_language/index.js";
-import { RecursiveCharacterTextSplitter } from "../text_splitter.js";
-import { MemoryVectorStore } from "../vectorstores/memory.js";
-import { StringPromptValue } from "../prompts/base.js";
-import { Document } from "../document.js";
-import { Tool, ToolParams } from "./base.js";
 import {
   CallbackManager,
   CallbackManagerForToolRun,
-} from "../callbacks/manager.js";
-import { Embeddings } from "../embeddings/base.js";
+} from "@langchain/core/callbacks/manager";
+import { isNode } from "@langchain/core/utils/env";
+import { Tool, ToolParams } from "@langchain/core/tools";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import {
+  RecursiveCharacterTextSplitter,
+  TextSplitter,
+} from "../text_splitter.js";
+import { MemoryVectorStore } from "../vectorstores/memory.js";
 import fetchAdapter from "../util/axios-fetch-adapter.js";
+import { formatDocumentsAsString } from "../util/document.js";
 
 export const parseInputs = (inputs: string): [string, string] => {
   const [baseUrl, task] = inputs.split(",").map((input) => {
@@ -142,10 +147,16 @@ const DEFAULT_HEADERS = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Headers = Record<string, any>;
 
+/**
+ * Defines the arguments that can be passed to the WebBrowser constructor.
+ * It extends the ToolParams interface and includes properties for a
+ * language model, embeddings, HTTP headers, an Axios configuration, a
+ * callback manager, and a text splitter.
+ */
 export interface WebBrowserArgs extends ToolParams {
-  model: BaseLanguageModel;
+  model: BaseLanguageModelInterface;
 
-  embeddings: Embeddings;
+  embeddings: EmbeddingsInterface;
 
   headers?: Headers;
 
@@ -153,36 +164,66 @@ export interface WebBrowserArgs extends ToolParams {
 
   /** @deprecated */
   callbackManager?: CallbackManager;
+
+  textSplitter?: TextSplitter;
 }
 
+/**
+ * A class designed to interact with web pages, either to extract
+ * information from them or to summarize their content. It uses the axios
+ * library to send HTTP requests and the cheerio library to parse the
+ * returned HTML.
+ * @example
+ * ```typescript
+ * const browser = new WebBrowser({
+ *   model: new ChatOpenAI({ temperature: 0 }),
+ *   embeddings: new OpenAIEmbeddings({}),
+ * });
+ * const result = await browser.invoke("https:exampleurl.com");
+ * ```
+ */
 export class WebBrowser extends Tool {
-  private model: BaseLanguageModel;
+  static lc_name() {
+    return "WebBrowser";
+  }
 
-  private embeddings: Embeddings;
+  get lc_namespace() {
+    return [...super.lc_namespace, "webbrowser"];
+  }
+
+  private model: BaseLanguageModelInterface;
+
+  private embeddings: EmbeddingsInterface;
 
   private headers: Headers;
 
   private axiosConfig: Omit<AxiosRequestConfig, "url">;
 
+  private textSplitter: TextSplitter;
+
   constructor({
     model,
     headers,
     embeddings,
-    verbose,
-    callbacks,
-    callbackManager,
     axiosConfig,
+    textSplitter,
   }: WebBrowserArgs) {
-    super(verbose, callbacks ?? callbackManager);
+    super(...arguments);
 
     this.model = model;
     this.embeddings = embeddings;
-    this.headers = headers || DEFAULT_HEADERS;
+    this.headers = headers ?? DEFAULT_HEADERS;
     this.axiosConfig = {
       withCredentials: true,
-      adapter: isNode ? undefined : fetchAdapter,
+      adapter: isNode() ? undefined : fetchAdapter,
       ...axiosConfig,
     };
+    this.textSplitter =
+      textSplitter ??
+      new RecursiveCharacterTextSplitter({
+        chunkSize: 2000,
+        chunkOverlap: 200,
+      });
   }
 
   /** @ignore */
@@ -201,11 +242,7 @@ export class WebBrowser extends Tool {
       return "There was a problem connecting to the site";
     }
 
-    const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 2000,
-      chunkOverlap: 200,
-    });
-    const texts = await textSplitter.splitText(text);
+    const texts = await this.textSplitter.splitText(text);
 
     let context;
     // if we want a summary grab first 4
@@ -226,24 +263,24 @@ export class WebBrowser extends Tool {
         docs,
         this.embeddings
       );
-      const results = await vectorStore.similaritySearch(task, 4);
-      context = results.map((res) => res.pageContent).join("\n");
+      const results = await vectorStore.similaritySearch(
+        task,
+        4,
+        undefined,
+        runManager?.getChild("vectorstore")
+      );
+      context = formatDocumentsAsString(results);
     }
 
     const input = `Text:${context}\n\nI need ${
       doSummary ? "a summary" : task
     } from the above text, also provide up to 5 markdown links from within that would be of interest (always including URL and text). Links should be provided, if present, in markdown syntax as a list under the heading "Relevant Links:".`;
 
-    const res = await this.model.generatePrompt(
-      [new StringPromptValue(input)],
-      undefined,
-      runManager?.getChild()
-    );
-
-    return res.generations[0][0].text;
+    const chain = RunnableSequence.from([this.model, new StringOutputParser()]);
+    return chain.invoke(input, runManager?.getChild());
   }
 
   name = "web-browser";
 
-  description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","what you want to find on the page or empty string for a summary".`;
+  description = `useful for when you need to find something on or summarize a webpage. input should be a comma separated list of "ONE valid http URL including protocol","what you want to find on the page or empty string for a summary".`;
 }

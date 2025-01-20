@@ -4,25 +4,23 @@ import {
   AgentExecutor,
 } from "langchain/agents";
 import { LLMChain } from "langchain/chains";
-import { OpenAI } from "langchain/llms/openai";
+import { OpenAI } from "@langchain/openai";
+import { Calculator } from "@langchain/community/tools/calculator";
 import {
-  BasePromptTemplate,
   BaseStringPromptTemplate,
   SerializedBasePromptTemplate,
   renderTemplate,
-} from "langchain/prompts";
-import {
-  InputValues,
-  PartialValues,
-  AgentStep,
-  AgentAction,
-  AgentFinish,
-} from "langchain/schema";
-import { SerpAPI, Tool } from "langchain/tools";
-import { Calculator } from "langchain/tools/calculator";
+} from "@langchain/core/prompts";
+import { InputValues } from "@langchain/core/memory";
+import { PartialValues } from "@langchain/core/utils/types";
+import { AgentStep, AgentAction, AgentFinish } from "@langchain/core/agents";
+import { Tool } from "@langchain/core/tools";
+import { SerpAPI } from "@langchain/community/tools/serpapi";
 
 const PREFIX = `Answer the following questions as best you can. You have access to the following tools:`;
-const formatInstructions = (toolNames: string) => `Use the following format:
+const formatInstructions = (
+  toolNames: string
+) => `Use the following format in your response:
 
 Question: the input question you must answer
 Thought: you should always think about what to do
@@ -70,7 +68,7 @@ class CustomPromptTemplate extends BaseStringPromptTemplate {
     return Promise.resolve(renderTemplate(template, "f-string", newInput));
   }
 
-  partial(_values: PartialValues): Promise<BasePromptTemplate> {
+  partial(_values: PartialValues): Promise<BaseStringPromptTemplate> {
     throw new Error("Not implemented");
   }
 
@@ -80,6 +78,8 @@ class CustomPromptTemplate extends BaseStringPromptTemplate {
 }
 
 class CustomOutputParser extends AgentActionOutputParser {
+  lc_namespace = ["langchain", "agents", "custom_llm_agent"];
+
   async parse(text: string): Promise<AgentAction | AgentFinish> {
     if (text.includes("Final Answer:")) {
       const parts = text.split("Final Answer:");
@@ -139,7 +139,7 @@ export const run = async () => {
 
   console.log(`Executing with input "${input}"...`);
 
-  const result = await executor.call({ input });
+  const result = await executor.invoke({ input });
 
   console.log(`Got output ${result.output}`);
 };

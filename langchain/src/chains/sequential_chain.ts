@@ -1,12 +1,12 @@
+import { ChainValues } from "@langchain/core/utils/types";
+import { CallbackManagerForChainRun } from "@langchain/core/callbacks/manager";
 import { BaseChain, ChainInputs } from "./base.js";
-import { ChainValues } from "../schema/index.js";
 import {
   SerializedBaseChain,
   SerializedSequentialChain,
   SerializedSimpleSequentialChain,
 } from "./serde.js";
 import { intersection, union, difference } from "../util/set.js";
-import { CallbackManagerForChainRun } from "../callbacks/manager.js";
 
 function formatSet(input: Set<string>) {
   return Array.from(input)
@@ -14,6 +14,13 @@ function formatSet(input: Set<string>) {
     .join(", ");
 }
 
+/**
+ * Interface for the input parameters of the SequentialChain class.
+ *
+ * @deprecated
+ * Switch to expression language: https://js.langchain.com/docs/expression_language/
+ * Will be removed in 0.2.0
+ */
 export interface SequentialChainInput extends ChainInputs {
   /** Array of chains to run as a sequence. The chains are run in order they appear in the array. */
   chains: BaseChain[];
@@ -27,8 +34,59 @@ export interface SequentialChainInput extends ChainInputs {
 
 /**
  * Chain where the outputs of one chain feed directly into next.
+ * @example
+ * ```typescript
+ * const promptTemplate = new PromptTemplate({
+ *   template: `You are a playwright. Given the title of play and the era it is set in, it is your job to write a synopsis for that title.
+ * Title: {title}
+ * Era: {era}
+ * Playwright: This is a synopsis for the above play:`,
+ *   inputVariables: ["title", "era"],
+ * });
+
+ * const reviewPromptTemplate = new PromptTemplate({
+ *   template: `You are a play critic from the New York Times. Given the synopsis of play, it is your job to write a review for that play.
+ *   
+ *     Play Synopsis:
+ *     {synopsis}
+ *     Review from a New York Times play critic of the above play:`,
+ *   inputVariables: ["synopsis"],
+ * });
+
+ * const overallChain = new SequentialChain({
+ *   chains: [
+ *     new LLMChain({
+ *       llm: new ChatOpenAI({ temperature: 0 }),
+ *       prompt: promptTemplate,
+ *       outputKey: "synopsis",
+ *     }),
+ *     new LLMChain({
+ *       llm: new OpenAI({ temperature: 0 }),
+ *       prompt: reviewPromptTemplate,
+ *       outputKey: "review",
+ *     }),
+ *   ],
+ *   inputVariables: ["era", "title"],
+ *   outputVariables: ["synopsis", "review"],
+ *   verbose: true,
+ * });
+
+ * const chainExecutionResult = await overallChain.call({
+ *   title: "Tragedy at sunset on the beach",
+ *   era: "Victorian England",
+ * });
+ * console.log(chainExecutionResult);
+ * ```
+ * 
+ * @deprecated
+ * Switch to {@link https://js.langchain.com/docs/expression_language/ | expression language}.
+ * Will be removed in 0.2.0
  */
 export class SequentialChain extends BaseChain implements SequentialChainInput {
+  static lc_name() {
+    return "SequentialChain";
+  }
+
   chains: BaseChain[];
 
   inputVariables: string[];
@@ -79,7 +137,12 @@ export class SequentialChain extends BaseChain implements SequentialChainInput {
 
     const availableKeys = union(inputKeysSet, memoryKeysSet);
     for (const chain of this.chains) {
-      const missingKeys = difference(new Set(chain.inputKeys), availableKeys);
+      let missingKeys = difference(new Set(chain.inputKeys), availableKeys);
+
+      if (chain.memory) {
+        missingKeys = difference(missingKeys, new Set(chain.memory.memoryKeys));
+      }
+
       if (missingKeys.size > 0) {
         throw new Error(
           `Missing variables for chain "${chain._chainType()}": ${formatSet(
@@ -88,11 +151,11 @@ export class SequentialChain extends BaseChain implements SequentialChainInput {
         );
       }
       const outputKeysSet = new Set(chain.outputKeys);
-      const overlappinOutputKeys = intersection(availableKeys, outputKeysSet);
-      if (overlappinOutputKeys.size > 0) {
+      const overlappingOutputKeys = intersection(availableKeys, outputKeysSet);
+      if (overlappingOutputKeys.size > 0) {
         throw new Error(
           `The following output variables for chain "${chain._chainType()}" are overlapping: ${formatSet(
-            overlappinOutputKeys
+            overlappingOutputKeys
           )}. This can lead to unexpected behaviour.`
         );
       }
@@ -129,10 +192,15 @@ export class SequentialChain extends BaseChain implements SequentialChainInput {
     values: ChainValues,
     runManager?: CallbackManagerForChainRun
   ): Promise<ChainValues> {
-    let input: ChainValues = values;
-    const allChainValues: ChainValues = {};
+    let input: ChainValues = {};
+    const allChainValues: ChainValues = values;
+    let i = 0;
     for (const chain of this.chains) {
-      input = await chain.call(input, runManager?.getChild());
+      i += 1;
+      input = await chain.call(
+        allChainValues,
+        runManager?.getChild(`step_${i}`)
+      );
       for (const key of Object.keys(input)) {
         allChainValues[key] = input[key];
       }
@@ -175,6 +243,10 @@ export class SequentialChain extends BaseChain implements SequentialChainInput {
   }
 }
 
+/**
+ * @deprecated Switch to expression language: https://js.langchain.com/docs/expression_language/
+ * Interface for the input parameters of the SimpleSequentialChain class.
+ */
 export interface SimpleSequentialChainInput extends ChainInputs {
   /** Array of chains to run as a sequence. The chains are run in order they appear in the array. */
   chains: Array<BaseChain>;
@@ -183,6 +255,7 @@ export interface SimpleSequentialChainInput extends ChainInputs {
 }
 
 /**
+ * @deprecated Switch to expression language: https://js.langchain.com/docs/expression_language/
  * Simple chain where a single string output of one chain is fed directly into the next.
  * @augments BaseChain
  * @augments SimpleSequentialChainInput
@@ -210,8 +283,8 @@ export interface SimpleSequentialChainInput extends ChainInputs {
  * Play Synopsis:
  * {synopsis}
  * Review from a New York Times play critic of the above play:`
- * const reviewPromptTempalte = new PromptTemplate({ template: reviewTemplate, inputVariables: ["synopsis"] });
- * const reviewChain = new LLMChain({ llm: reviewLLM, prompt: reviewPromptTempalte });
+ * const reviewPromptTemplate = new PromptTemplate({ template: reviewTemplate, inputVariables: ["synopsis"] });
+ * const reviewChain = new LLMChain({ llm: reviewLLM, prompt: reviewPromptTemplate });
  *
  * const overallChain = new SimpleSequentialChain({chains: [synopsisChain, reviewChain], verbose:true})
  * const review = await overallChain.run("Tragedy at sunset on the beach")
@@ -222,6 +295,10 @@ export class SimpleSequentialChain
   extends BaseChain
   implements SimpleSequentialChainInput
 {
+  static lc_name() {
+    return "SimpleSequentialChain";
+  }
+
   chains: Array<BaseChain>;
 
   inputKey = "input";
@@ -239,11 +316,7 @@ export class SimpleSequentialChain
   }
 
   constructor(fields: SimpleSequentialChainInput) {
-    super(
-      fields.memory,
-      fields.verbose,
-      fields.callbacks ?? fields.callbackManager
-    );
+    super(fields);
     this.chains = fields.chains;
     this.trimOutputs = fields.trimOutputs ?? false;
     this._validateChains();
@@ -252,7 +325,11 @@ export class SimpleSequentialChain
   /** @ignore */
   _validateChains() {
     for (const chain of this.chains) {
-      if (chain.inputKeys.length !== 1) {
+      if (
+        chain.inputKeys.filter(
+          (k) => !chain.memory?.memoryKeys.includes(k) ?? true
+        ).length !== 1
+      ) {
         throw new Error(
           `Chains used in SimpleSequentialChain should all have one input, got ${
             chain.inputKeys.length
@@ -275,8 +352,15 @@ export class SimpleSequentialChain
     runManager?: CallbackManagerForChainRun
   ): Promise<ChainValues> {
     let input: string = values[this.inputKey];
+    let i = 0;
     for (const chain of this.chains) {
-      input = await chain.run(input, runManager?.getChild());
+      i += 1;
+      input = (
+        await chain.call(
+          { [chain.inputKeys[0]]: input, signal: values.signal },
+          runManager?.getChild(`step_${i}`)
+        )
+      )[chain.outputKeys[0]];
       if (this.trimOutputs) {
         input = input.trim();
       }

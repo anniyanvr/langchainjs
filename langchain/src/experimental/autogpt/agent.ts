@@ -1,39 +1,68 @@
-import { LLMChain } from "../../chains/llm_chain.js";
-import { BaseChatModel } from "../../chat_models/base.js";
-import { VectorStoreRetriever } from "../../vectorstores/base.js";
-import { Tool } from "../../tools/base.js";
-
-import { AutoGPTOutputParser } from "./output_parser.js";
-import { AutoGPTPrompt } from "./prompt.js";
+import type { VectorStoreRetrieverInterface } from "@langchain/core/vectorstores";
+import { Tool } from "@langchain/core/tools";
 import {
-  AIChatMessage,
-  BaseChatMessage,
-  HumanChatMessage,
-  SystemChatMessage,
-} from "../../schema/index.js";
-// import { HumanInputRun } from "./tools/human/tool"; // TODO
-import { ObjectTool, FINISH_NAME } from "./schema.js";
-import { TokenTextSplitter } from "../../text_splitter.js";
+  AIMessage,
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import {
   getEmbeddingContextSize,
   getModelContextSize,
-} from "../../base_language/count_tokens.js";
+} from "@langchain/core/language_models/base";
+import { LLMChain } from "../../chains/llm_chain.js";
 
+import { AutoGPTOutputParser } from "./output_parser.js";
+import { AutoGPTPrompt } from "./prompt.js";
+// import { HumanInputRun } from "./tools/human/tool"; // TODO
+import { ObjectTool, FINISH_NAME } from "./schema.js";
+import { TokenTextSplitter } from "../../text_splitter.js";
+
+/**
+ * Interface for the input parameters of the AutoGPT class.
+ */
 export interface AutoGPTInput {
   aiName: string;
   aiRole: string;
-  memory: VectorStoreRetriever;
+  memory: VectorStoreRetrieverInterface;
   humanInTheLoop?: boolean;
   outputParser?: AutoGPTOutputParser;
   maxIterations?: number;
 }
 
+/**
+ * Class representing the AutoGPT concept with LangChain primitives. It is
+ * designed to be used with a set of tools such as a search tool,
+ * write-file tool, and a read-file tool.
+ * @example
+ * ```typescript
+ * const autogpt = AutoGPT.fromLLMAndTools(
+ *   new ChatOpenAI({ temperature: 0 }),
+ *   [
+ *     new ReadFileTool({ store: new InMemoryFileStore() }),
+ *     new WriteFileTool({ store: new InMemoryFileStore() }),
+ *     new SerpAPI("YOUR_SERPAPI_API_KEY", {
+ *       location: "San Francisco,California,United States",
+ *       hl: "en",
+ *       gl: "us",
+ *     }),
+ *   ],
+ *   {
+ *     memory: new MemoryVectorStore(new OpenAIEmbeddings()).asRetriever(),
+ *     aiName: "Tom",
+ *     aiRole: "Assistant",
+ *   },
+ * );
+ * const result = await autogpt.run(["write a weather report for SF today"]);
+ * ```
+ */
 export class AutoGPT {
   aiName: string;
 
-  memory: VectorStoreRetriever;
+  memory: VectorStoreRetrieverInterface;
 
-  fullMessageHistory: BaseChatMessage[];
+  fullMessageHistory: BaseMessage[];
 
   nextActionCount: number;
 
@@ -83,6 +112,17 @@ export class AutoGPT {
     });
   }
 
+  /**
+   * Creates a new AutoGPT instance from a given LLM and a set of tools.
+   * @param llm A BaseChatModel object.
+   * @param tools An array of ObjectTool objects.
+   * @param options.aiName The name of the AI.
+   * @param options.aiRole The role of the AI.
+   * @param options.memory A VectorStoreRetriever object that represents the memory of the AI.
+   * @param options.maxIterations The maximum number of iterations the AI can perform.
+   * @param options.outputParser An AutoGPTOutputParser object that parses the output of the AI.
+   * @returns A new instance of the AutoGPT class.
+   */
   static fromLLMAndTools(
     llm: BaseChatModel,
     tools: ObjectTool[],
@@ -117,6 +157,11 @@ export class AutoGPT {
     });
   }
 
+  /**
+   * Runs the AI with a given set of goals.
+   * @param goals An array of strings representing the goals.
+   * @returns A string representing the result of the run or undefined if the maximum number of iterations is reached without a result.
+   */
   async run(goals: string[]): Promise<string | undefined> {
     const user_input =
       "Determine which next command to use, and respond using the format specified above:";
@@ -133,8 +178,8 @@ export class AutoGPT {
 
       // Print the assistant reply
       console.log(assistantReply);
-      this.fullMessageHistory.push(new HumanChatMessage(user_input));
-      this.fullMessageHistory.push(new AIChatMessage(assistantReply));
+      this.fullMessageHistory.push(new HumanMessage(user_input));
+      this.fullMessageHistory.push(new AIMessage(assistantReply));
 
       const action = await this.outputParser.parse(assistantReply);
       const tools = this.tools.reduce(
@@ -172,7 +217,7 @@ export class AutoGPT {
 
       const documents = await this.textSplitter.createDocuments([memoryToAdd]);
       await this.memory.addDocuments(documents);
-      this.fullMessageHistory.push(new SystemChatMessage(result));
+      this.fullMessageHistory.push(new SystemMessage(result));
     }
 
     return undefined;

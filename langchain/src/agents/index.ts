@@ -1,56 +1,104 @@
 export {
   Agent,
-  AgentArgs,
+  type AgentArgs,
   BaseSingleActionAgent,
+  BaseMultiActionAgent,
+  RunnableAgent,
   LLMSingleActionAgent,
-  LLMSingleActionAgentInput,
-  OutputParserArgs,
+  type LLMSingleActionAgentInput,
+  type OutputParserArgs,
+  type AgentRunnableSequence,
 } from "./agent.js";
 export {
   JsonToolkit,
   OpenApiToolkit,
   RequestsToolkit,
-  SqlToolkit,
-  VectorStoreInfo,
+  type VectorStoreInfo,
   VectorStoreRouterToolkit,
   VectorStoreToolkit,
-  ZapierToolKit,
   createJsonAgent,
   createOpenApiAgent,
-  createSqlAgent,
-  SqlCreatePromptArgs,
   createVectorStoreAgent,
-} from "./agent_toolkits/index.js";
-export { Toolkit } from "./agent_toolkits/base.js";
+  createVectorStoreRouterAgent,
+} from "./toolkits/index.js";
+export { Toolkit } from "./toolkits/base.js";
 export {
   ChatAgent,
-  ChatAgentInput,
-  ChatCreatePromptArgs,
+  type ChatAgentInput,
+  type ChatCreatePromptArgs,
 } from "./chat/index.js";
 export { ChatAgentOutputParser } from "./chat/outputParser.js";
 export {
   ChatConversationalAgent,
-  ChatConversationalAgentInput,
-  ChatConversationalCreatePromptArgs,
+  type ChatConversationalAgentInput,
+  type ChatConversationalCreatePromptArgs,
 } from "./chat_convo/index.js";
-export { ChatConversationalAgentOutputParser } from "./chat_convo/outputParser.js";
-export { AgentExecutor, AgentExecutorInput } from "./executor.js";
+export {
+  ChatConversationalAgentOutputParser,
+  type ChatConversationalAgentOutputParserArgs,
+  ChatConversationalAgentOutputParserWithRetries,
+  type ChatConversationalAgentOutputParserFormatInstructionsOptions,
+} from "./chat_convo/outputParser.js";
+export { AgentExecutor, type AgentExecutorInput } from "./executor.js";
 export {
   initializeAgentExecutor,
   initializeAgentExecutorWithOptions,
-  InitializeAgentExecutorOptions,
+  type InitializeAgentExecutorOptions,
+  type InitializeAgentExecutorOptionsStructured,
 } from "./initialize.js";
 export {
   ZeroShotAgent,
-  ZeroShotAgentInput,
-  ZeroShotCreatePromptArgs,
+  type ZeroShotAgentInput,
+  type ZeroShotCreatePromptArgs,
 } from "./mrkl/index.js";
 export { ZeroShotAgentOutputParser } from "./mrkl/outputParser.js";
 export {
   AgentActionOutputParser,
-  AgentInput,
-  SerializedAgent,
-  SerializedAgentT,
-  SerializedZeroShotAgent,
-  StoppingMethod,
+  type AgentInput,
+  type SerializedAgent,
+  type SerializedAgentT,
+  type SerializedZeroShotAgent,
+  type StoppingMethod,
 } from "./types.js";
+export {
+  StructuredChatAgent,
+  type StructuredChatAgentInput,
+  type StructuredChatCreatePromptArgs,
+  type CreateStructuredChatAgentParams,
+  createStructuredChatAgent,
+} from "./structured_chat/index.js";
+export {
+  StructuredChatOutputParser,
+  type StructuredChatOutputParserArgs,
+  StructuredChatOutputParserWithRetries,
+} from "./structured_chat/outputParser.js";
+export {
+  OpenAIAgent,
+  type OpenAIAgentInput,
+  type OpenAIAgentCreatePromptArgs,
+  type CreateOpenAIFunctionsAgentParams,
+  createOpenAIFunctionsAgent,
+} from "./openai_functions/index.js";
+export {
+  type CreateOpenAIToolsAgentParams,
+  createOpenAIToolsAgent,
+} from "./openai_tools/index.js";
+export {
+  type CreateToolCallingAgentParams,
+  createToolCallingAgent,
+} from "./tool_calling/index.js";
+export {
+  XMLAgent,
+  type XMLAgentInput,
+  type CreateXmlAgentParams,
+  createXmlAgent,
+} from "./xml/index.js";
+export {
+  type CreateReactAgentParams,
+  createReactAgent,
+} from "./react/index.js";
+export type {
+  AgentAction,
+  AgentFinish,
+  AgentStep,
+} from "@langchain/core/agents";

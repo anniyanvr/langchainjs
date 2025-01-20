@@ -5,8 +5,11 @@ import {
   SystemMessagePromptTemplate,
   HumanMessagePromptTemplate,
   AIMessagePromptTemplate,
-} from "../../prompts/index.js";
-import { ConditionalPromptSelector, isChatModel } from "../prompt_selector.js";
+} from "@langchain/core/prompts";
+import {
+  ConditionalPromptSelector,
+  isChatModel,
+} from "@langchain/core/example_selectors";
 
 export const DEFAULT_REFINE_PROMPT_TMPL = `The original question is as follows: {question}
 We have provided an existing answer: {existing_answer}
@@ -39,7 +42,7 @@ const messages = [
 ];
 
 export const CHAT_REFINE_PROMPT =
-  /*#__PURE__*/ ChatPromptTemplate.fromPromptMessages(messages);
+  /*#__PURE__*/ ChatPromptTemplate.fromMessages(messages);
 
 export const REFINE_PROMPT_SELECTOR =
   /*#__PURE__*/ new ConditionalPromptSelector(DEFAULT_REFINE_PROMPT, [
@@ -50,7 +53,7 @@ export const DEFAULT_TEXT_QA_PROMPT_TMPL = `Context information is below.
 ---------------------
 {context}
 ---------------------
-Given the context information and not prior knowledge, answer the question: {question}`;
+Given the context information and no prior knowledge, answer the question: {question}`;
 export const DEFAULT_TEXT_QA_PROMPT = /*#__PURE__*/ new PromptTemplate({
   inputVariables: ["context", "question"],
   template: DEFAULT_TEXT_QA_PROMPT_TMPL,
@@ -60,7 +63,7 @@ const chat_qa_prompt_template = `Context information is below.
 ---------------------
 {context}
 ---------------------
-Given the context information and not prior knowledge, answer any questions`;
+Given the context information and no prior knowledge, answer any questions`;
 const chat_messages = [
   /*#__PURE__*/ SystemMessagePromptTemplate.fromTemplate(
     chat_qa_prompt_template
@@ -68,7 +71,7 @@ const chat_messages = [
   /*#__PURE__*/ HumanMessagePromptTemplate.fromTemplate("{question}"),
 ];
 export const CHAT_QUESTION_PROMPT =
-  /*#__PURE__*/ ChatPromptTemplate.fromPromptMessages(chat_messages);
+  /*#__PURE__*/ ChatPromptTemplate.fromMessages(chat_messages);
 export const QUESTION_PROMPT_SELECTOR =
   /*#__PURE__*/ new ConditionalPromptSelector(DEFAULT_TEXT_QA_PROMPT, [
     [isChatModel, CHAT_QUESTION_PROMPT],

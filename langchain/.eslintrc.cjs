@@ -11,8 +11,11 @@ module.exports = {
     project: "./tsconfig.json",
     sourceType: "module",
   },
-  plugins: ["@typescript-eslint", "no-instanceof"],
+  plugins: ["@typescript-eslint", "no-instanceof", "eslint-plugin-jest"],
   ignorePatterns: [
+    "src/util/@cfworker",
+    "src/util/fast-json-patch",
+    "src/util/js-sha1",
     ".eslintrc.cjs",
     "scripts",
     "node_modules",
@@ -21,6 +24,8 @@ module.exports = {
     "*.js",
     "*.cjs",
     "*.d.ts",
+    "import_map.ts",
+    "dynamic_import_map.ts",
   ],
   rules: {
     "no-process-env": 2,
@@ -51,10 +56,27 @@ module.exports = {
     "no-restricted-syntax": 0,
     "no-shadow": 0,
     "no-continue": 0,
+    "no-void": 0,
     "no-underscore-dangle": 0,
     "no-use-before-define": 0,
     "no-useless-constructor": 0,
     "no-return-await": 0,
+    "no-plusplus": 0,
+    "consistent-return": 0,
+    "no-else-return": 0,
+    "func-names": 0,
+    "no-lonely-if": 0,
+    "prefer-rest-params": 0,
     "new-cap": ["error", { properties: false, capIsNew: false }],
+    'jest/no-focused-tests': 'error',
+    "arrow-body-style": 0,
   },
+  overrides: [
+    {
+      files: ['**/*.test.ts'],
+      rules: {
+        '@typescript-eslint/no-unused-vars': 'off'
+      }
+    }
+  ]
 };

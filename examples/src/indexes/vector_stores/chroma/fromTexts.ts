@@ -1,5 +1,5 @@
-import { Chroma } from "langchain/vectorstores/chroma";
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
 
 // text sample from Godel, Escher, Bach
 const vectorStore = await Chroma.fromTexts(
@@ -28,6 +28,21 @@ console.log(response);
 /*
 [
   Document { pageContent: 'Achilles: Oh, no!', metadata: {} },
+  Document {
+    pageContent: 'Achilles: Yiikes! What is that?',
+    metadata: { id: 1 }
+  }
+]
+*/
+
+// You can also filter by metadata
+const filteredResponse = await vectorStore.similaritySearch("scared", 2, {
+  id: 1,
+});
+
+console.log(filteredResponse);
+/*
+[
   Document {
     pageContent: 'Achilles: Yiikes! What is that?',
     metadata: { id: 1 }

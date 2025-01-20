@@ -1,14 +1,20 @@
-import { Document } from "../document.js";
-import { BasePromptTemplate, StringPromptValue } from "../prompts/base.js";
-import { PromptTemplate } from "../prompts/prompt.js";
+import type { BaseLanguageModelInterface } from "@langchain/core/language_models/base";
+import { Document } from "@langchain/core/documents";
+import { PromptTemplate, BasePromptTemplate } from "@langchain/core/prompts";
+import {
+  StringPromptValue,
+  BasePromptValue,
+} from "@langchain/core/prompt_values";
 import {
   VectorStore,
   VectorStoreRetriever,
   VectorStoreRetrieverInput,
-} from "../vectorstores/base.js";
-import { BaseLanguageModel } from "../base_language/index.js";
-import { BasePromptValue } from "../schema/index.js";
+} from "@langchain/core/vectorstores";
+import { CallbackManagerForRetrieverRun } from "@langchain/core/callbacks/manager";
 
+/**
+ * A string that corresponds to a specific prompt template.
+ */
 export type PromptKey =
   | "websearch"
   | "scifact"
@@ -19,16 +25,54 @@ export type PromptKey =
   | "trec-news"
   | "mr-tydi";
 
-export interface HydeRetrieverOptions<V extends VectorStore>
-  extends VectorStoreRetrieverInput<V> {
-  llm: BaseLanguageModel;
-  promptTemplate?: BasePromptTemplate | PromptKey;
-}
+/**
+ * Options for the HydeRetriever class, which includes a BaseLanguageModel
+ * instance, a VectorStore instance, and an optional promptTemplate which
+ * can either be a BasePromptTemplate instance or a PromptKey.
+ */
+export type HydeRetrieverOptions<V extends VectorStore> =
+  VectorStoreRetrieverInput<V> & {
+    llm: BaseLanguageModelInterface;
+    promptTemplate?: BasePromptTemplate | PromptKey;
+  };
 
+/**
+ * A class for retrieving relevant documents based on a given query. It
+ * extends the VectorStoreRetriever class and uses a BaseLanguageModel to
+ * generate a hypothetical answer to the query, which is then used to
+ * retrieve relevant documents.
+ * @example
+ * ```typescript
+ * const retriever = new HydeRetriever({
+ *   vectorStore: new MemoryVectorStore(new OpenAIEmbeddings()),
+ *   llm: new ChatOpenAI(),
+ *   k: 1,
+ * });
+ * await vectorStore.addDocuments(
+ *   [
+ *     "My name is John.",
+ *     "My name is Bob.",
+ *     "My favourite food is pizza.",
+ *     "My favourite food is pasta.",
+ *   ].map((pageContent) => new Document({ pageContent })),
+ * );
+ * const results = await retriever.getRelevantDocuments(
+ *   "What is my favourite food?",
+ * );
+ * ```
+ */
 export class HydeRetriever<
   V extends VectorStore = VectorStore
 > extends VectorStoreRetriever<V> {
-  llm: BaseLanguageModel;
+  static lc_name() {
+    return "HydeRetriever";
+  }
+
+  get lc_namespace(): string[] {
+    return ["langchain", "retrievers", "hyde"];
+  }
+
+  llm: BaseLanguageModelInterface;
 
   promptTemplate?: BasePromptTemplate;
 
@@ -49,7 +93,10 @@ export class HydeRetriever<
     }
   }
 
-  async getRelevantDocuments(query: string): Promise<Document[]> {
+  async _getRelevantDocuments(
+    query: string,
+    runManager?: CallbackManagerForRetrieverRun
+  ): Promise<Document[]> {
     let value: BasePromptValue = new StringPromptValue(query);
 
     // Use a custom template if provided
@@ -65,29 +112,33 @@ export class HydeRetriever<
     const results = await this.vectorStore.similaritySearch(
       answer,
       this.k,
-      this.filter
+      this.filter,
+      runManager?.getChild("vectorstore")
     );
 
     return results;
   }
 }
 
+/**
+ * Returns a BasePromptTemplate instance based on a given PromptKey.
+ */
 export function getPromptTemplateFromKey(key: PromptKey): BasePromptTemplate {
   let template: string;
 
   switch (key) {
     case "websearch":
-      template = `Please write a passage to answer the question 
+      template = `Please write a passage to answer the question
 Question: {question}
 Passage:`;
       break;
     case "scifact":
-      template = `Please write a scientific paper passage to support/refute the claim 
+      template = `Please write a scientific paper passage to support/refute the claim
 Claim: {question}
 Passage:`;
       break;
     case "arguana":
-      template = `Please write a counter argument for the passage 
+      template = `Please write a counter argument for the passage
 Passage: {question}
 Counter Argument:`;
       break;

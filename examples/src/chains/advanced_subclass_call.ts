@@ -1,16 +1,16 @@
-import { BasePromptTemplate, PromptTemplate } from "langchain/prompts";
-import { BaseLanguageModel } from "langchain/base_language";
-import { CallbackManagerForChainRun } from "langchain/callbacks";
+import type { BaseLanguageModelInterface } from "@langchain/core/language_models/base";
 import { BaseChain, ChainInputs } from "langchain/chains";
-import { ChainValues } from "langchain/schema";
+import { BasePromptTemplate, PromptTemplate } from "@langchain/core/prompts";
+import { CallbackManagerForChainRun } from "@langchain/core/callbacks/manager";
+import { ChainValues } from "@langchain/core/utils/types";
 
 export interface MyCustomChainInputs extends ChainInputs {
-  llm: BaseLanguageModel;
+  llm: BaseLanguageModelInterface;
   promptTemplate: string;
 }
 
 export class MyCustomChain extends BaseChain implements MyCustomChainInputs {
-  llm: BaseLanguageModel;
+  llm: BaseLanguageModelInterface;
 
   promptTemplate: string;
 
@@ -38,7 +38,9 @@ export class MyCustomChain extends BaseChain implements MyCustomChainInputs {
     // `runManager?.getChild()` as shown below.
     const result = await this.llm.generatePrompt(
       [promptValue],
-      runManager?.getChild()
+      {},
+      // This tag "a-tag" will be attached to this inner LLM call
+      runManager?.getChild("a-tag")
     );
 
     // If you want to log something about this run, you can do so by calling

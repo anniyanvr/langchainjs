@@ -1,4 +1,4 @@
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 export const run = async () => {
   const text = `Hi.\n\nI'm Harrison.\n\nHow? Are? You?\nOkay then f f f f.
@@ -8,6 +8,6 @@ export const run = async () => {
     chunkSize: 10,
     chunkOverlap: 1,
   });
-  const output = splitter.createDocuments([text]);
+  const output = await splitter.createDocuments([text]);
   console.log(output);
 };

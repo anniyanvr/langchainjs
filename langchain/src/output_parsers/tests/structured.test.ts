@@ -1,163 +1,101 @@
-import { z } from "zod";
-
 import { expect, test } from "@jest/globals";
-
+import { z } from "zod";
 import { StructuredOutputParser } from "../structured.js";
 
-test("StructuredOutputParser.fromNamesAndDescriptions", async () => {
-  const parser = StructuredOutputParser.fromNamesAndDescriptions({
-    url: "A link to the resource",
-  });
-
-  expect(await parser.parse('```json\n{"url": "value"}```')).toEqual({
-    url: "value",
-  });
-
-  expect(parser.getFormatInstructions()).toMatchInlineSnapshot(`
-"The output should be a markdown code snippet formatted in the following schema:
-
-\`\`\`json
-{
-	"url": string // A link to the resource
-}
-\`\`\`
-
-Including the leading and trailing "\`\`\`json" and "\`\`\`"
-"
-`);
-});
-
-enum StateProvinceEnum {
-  Alabama = "AL",
-  Alaska = "AK",
-  Arizona = "AZ",
-}
-
-test("StructuredOutputParser.fromZodSchema", async () => {
-  const parser = StructuredOutputParser.fromZodSchema(
-    z.object({ url: z.string().describe("A link to the resource") })
-  );
-
-  expect(await parser.parse('```json\n{"url": "value"}```')).toEqual({
-    url: "value",
-  });
-
-  expect(parser.getFormatInstructions()).toMatchInlineSnapshot(`
-"The output should be a markdown code snippet formatted in the following schema:
-
-\`\`\`json
-{
-	"url": string // A link to the resource
-}
-\`\`\`
-
-Including the leading and trailing "\`\`\`json" and "\`\`\`"
-"
-`);
-});
-
-test("StructuredOutputParser.fromZodSchema", async () => {
+test("StructuredOutputParser handles valid JSON wrapped in triple backticks", async () => {
   const parser = StructuredOutputParser.fromZodSchema(
     z.object({
-      answer: z.string().describe("answer to the user's question"),
-      sources: z
-        .array(z.string())
-        .describe("sources used to answer the question, should be websites."),
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
     })
   );
+  const text = '```json\n{"name": "John Doe", "age": 30}```';
 
-  expect(
-    await parser.parse(
-      '```json\n{"answer": "value", "sources": ["this-source"]}```'
-    )
-  ).toEqual({
-    answer: "value",
-    sources: ["this-source"],
-  });
+  const result = await parser.parse(text);
 
-  expect(parser.getFormatInstructions()).toMatchInlineSnapshot(`
-"The output should be a markdown code snippet formatted in the following schema:
-
-\`\`\`json
-{
-	"answer": string // answer to the user's question
-	"sources": string[] // sources used to answer the question, should be websites.
-}
-\`\`\`
-
-Including the leading and trailing "\`\`\`json" and "\`\`\`"
-"
-`);
+  expect(result).toHaveProperty("name", "John Doe");
+  expect(result).toHaveProperty("age", 30);
 });
 
-test("StructuredOutputParser.fromZodSchema", async () => {
+test("StructuredOutputParser handles JSON without triple backticks", async () => {
   const parser = StructuredOutputParser.fromZodSchema(
-    z
-      .object({
-        url: z.string().describe("A link to the resource"),
-        title: z.string().describe("A title for the resource"),
-        year: z.number().describe("The year the resource was created"),
-        createdAt: z
-          .string()
-          .datetime()
-          .describe("The date and time the resource was created"),
-        createdAtDate: z.coerce
-          .date()
-          .describe("The date the resource was created")
-          .optional(),
-        authors: z.array(
-          z.object({
-            name: z.string().describe("The name of the author"),
-            email: z.string().describe("The email of the author"),
-            type: z.enum(["author", "editor"]).optional(),
-            address: z
-              .string()
-              .optional()
-              .describe("The address of the author"),
-            stateProvince: z
-              .nativeEnum(StateProvinceEnum)
-              .optional()
-              .describe("The state or province of the author"),
-          })
-        ),
-      })
-      .describe("Only One object")
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
   );
+  const text = '{"name": "John Doe", "age": 30}';
 
-  expect(
-    await parser.parse(
-      '```json\n{"url": "value", "title": "value", "year": 2011, "createdAt": "2023-03-29T16:07:09.600Z", "createdAtDate": "2023-03-29", "authors": [{"name": "value", "email": "value", "stateProvince": "AZ"}]}```'
-    )
-  ).toEqual({
-    url: "value",
-    title: "value",
-    year: 2011,
-    createdAt: "2023-03-29T16:07:09.600Z",
-    createdAtDate: new Date("2023-03-29T00:00:00.000Z"),
-    authors: [{ name: "value", email: "value", stateProvince: "AZ" }],
-  });
+  const result = await parser.parse(text);
 
-  expect(parser.getFormatInstructions()).toMatchInlineSnapshot(`
-"The output should be a markdown code snippet formatted in the following schema:
+  expect(result).toHaveProperty("name", "John Doe");
+  expect(result).toHaveProperty("age", 30);
+});
 
-\`\`\`json
-{ // Only One object
-	"url": string // A link to the resource
-	"title": string // A title for the resource
-	"year": number // The year the resource was created
-	"createdAt": datetime // The date and time the resource was created
-	"createdAtDate": date // Optional // The date the resource was created
-	"authors": {
-		"name": string // The name of the author
-		"email": string // The email of the author
-		"type": "author" | "editor" // Optional
-		"address": string // Optional // The address of the author
-		"stateProvince": "AL" | "AK" | "AZ" // Optional // The state or province of the author
-	}[]
-}
-\`\`\`
+test("StructuredOutputParser throws error for invalid JSON wrapped in triple backticks", async () => {
+  const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
+  );
+  // Invalid JSON
+  const text = '```json\n{"name": "John Doe", "age": }```';
 
-Including the leading and trailing "\`\`\`json" and "\`\`\`"
-"
-`);
+  await expect(parser.parse(text)).rejects.toThrow("Failed to parse");
+});
+
+test("StructuredOutputParser throws error for normal text without triple backticks", async () => {
+  const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
+  );
+  // Invalid JSON
+  const text = "This is just a plain text without JSON.";
+
+  await expect(parser.parse(text)).rejects.toThrow("Failed to parse");
+});
+
+test("StructuredOutputParser handles JSON with backticks inside text but not at the start", async () => {
+  const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
+  );
+  const text = 'Some random text ```json\n{"name": "John Doe", "age": 30}```';
+  const result = await parser.parse(text);
+
+  expect(result).toHaveProperty("name", "John Doe");
+  expect(result).toHaveProperty("age", 30);
+});
+
+test("StructuredOutputParser handles JSON with backticks inside JSON", async () => {
+  const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
+  );
+  const text = '{"name": "John ```Doe```", "age": 30}';
+
+  const result = await parser.parse(text);
+
+  expect(result).toHaveProperty("name", "John ```Doe```");
+  expect(result).toHaveProperty("age", 30);
+});
+
+test("StructuredOutputParser throws error for JSON with backticks both inside and outside the JSON", async () => {
+  const parser = StructuredOutputParser.fromZodSchema(
+    z.object({
+      name: z.string().describe("Human name"),
+      age: z.number().describe("Human age"),
+    })
+  );
+  const text =
+    'Some random text ```json\n{"name": "John ```Doe```", "age": 30}```';
+
+  await expect(parser.parse(text)).rejects.toThrow("Failed to parse");
 });
